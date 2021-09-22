@@ -1,0 +1,3 @@
+DBPASS={{errase brackets and add db password}}
+DBUSER={{errase brackets and add db user}}
+PORT=8080
