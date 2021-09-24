@@ -1,10 +1,12 @@
 import express from 'express';
+// import { MongoClient } from 'mongodb';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import db from './models/index.js';
 import helpers from './helpers/index.js';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
+import dbManager from './database/index.js';
 
 dotenv.config()
 
@@ -31,6 +33,17 @@ app.use(function (req, res, next) {
   next();
 });
 
+dbManager.initDb().then((dbs) => {
+  app.get('/', (req, res) => {
+    res.json({ message: `API is up and running!` });
+  });
+
+  authRoutes.authRoutes(app, dbs);
+  userRoutes.userRoutes(app, dbs);
+
+}).catch(console.dir);
+
+/* 
 db.mongoose
   .connect(`mongodb+srv://atlante_avila:${process.env.DBPASS}@cluster0.t8boi.mongodb.net/myFirstDatabase?retryWrites=true&w=majority`, {
     useNewUrlParser: true,
@@ -51,7 +64,8 @@ app.get('/', (req, res) => {
 });
 
 authRoutes.authRoutes(app);
-userRoutes.userRoutes(app);
+userRoutes.userRoutes(app); 
+*/
 
 // set port, listen for requests
 const PORT = process.env.PORT || 8080;

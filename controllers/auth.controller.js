@@ -1,7 +1,8 @@
 import config from "../config.js";
 import db from "../models/index.js";
 import randtoken from 'rand-token';
-import helpers from '../helpers/index.js'
+import helpers from '../helpers/index.js';
+import dbManager from "../database/index.js";
 const User = db.user;
 const Role = db.role;
 const RefreshToken = db.refreshToken;
@@ -23,7 +24,7 @@ const signup = (req, res) => {
 
     user.save((err, user) => {
         if (err) {
-            res.status(500).send({ message: err });
+            res.status(500).send({ message: err.message });
             return;
         }
 
@@ -34,14 +35,14 @@ const signup = (req, res) => {
                 },
                 (err, roles) => {
                     if (err) {
-                        res.status(500).send({ message: err });
+                        res.status(500).send({ message: err.message });
                         return;
                     }
 
                     user.roles = roles.map(role => role._id);
                     user.save(err => {
                         if (err) {
-                            res.status(500).send({ message: err });
+                            res.status(500).send({ message: err.message });
                             return;
                         }
 
@@ -55,14 +56,14 @@ const signup = (req, res) => {
         } else {
             Role.findOne({ name: "user" }, (err, role) => {
                 if (err) {
-                    res.status(500).send({ message: err });
+                    res.status(500).send({ message: err.message });
                     return;
                 }
 
                 user.roles = [role._id];
                 user.save(err => {
                     if (err) {
-                        res.status(500).send({ message: err });
+                        res.status(500).send({ message: err.message });
                         return;
                     }
 
@@ -75,25 +76,33 @@ const signup = (req, res) => {
 
 const signin = (req, res) => {
     const { username } = req.body;
-    User.findOne({
-        username: username,
-    })
-        .populate("roles", "-__v")
-        .exec(async (err, user) => {
-            if (err) {
-                res.status(500).send({ message: err });
-                return;
+    dbManager.aggregate();
+    dbManager.findOne('users',
+        { username: username },
+        {
+            $lookup: {
+                "from": "roles",
+                "let": { "roles": "$id" },
+                pipeline: [
+                    {
+                        "$match": {
+                            "$expr": {
+                                "$in": ["$$roles", "$users.id"],
+                            },
+                        },
+                    },
+                ],
+                as: "user_roles"
             }
-
+        }).then(async (user) => {
+            console.log('The user is here', user);
             if (!user) {
-                return res.status(404).send({
+                return res.code(404).json({
                     success: false,
-                    message: "User Not found."
-                });
+                    message: 'Unable to find user.'
+                })
             }
-
             const passwordIsValid = helpers.comparePasswords(req.body.password, user.password);
-
             if (!passwordIsValid) {
                 return res.status(401).send({
                     accessToken: null,
@@ -103,35 +112,32 @@ const signin = (req, res) => {
 
             const token = helpers.createJwt(user.id, config.secret);
 
-            const authorities = [];
-
-            for (let i = 0; i < user.roles.length; i++) {
-                authorities.push("ROLE_" + user.roles[i].name.toUpperCase());
-            }
-            // generate new token and save it in the db;
+            const roles = await dbManager.find("roles", {
+                _id: {
+                    $in: user.roles
+                }
+            })
+            
             const refreshToken = randtoken.uid(256);
             refreshTokens[refreshToken] = username;
 
-            const saveUser = {
+            const saveUserToken = {
                 refreshToken: refreshToken,
                 username: username,
             }
-            const refresh = new RefreshToken(saveUser);
 
-            refresh.save((err) => {
-                if (err) {
-                    throw new Error('Unable to save the user');
-                }
-            })
+            dbManager.insertOne('refreshTokens', saveUserToken)
+
             res.status(200).json({
                 id: user._id,
                 username: user.username,
                 email: user.email,
-                roles: authorities,
+                roles,
                 accessToken: token,
                 refreshToken,
             });
-        });
+        })
+        .catch(e => console.log('error message', e.message));
 };
 
 const token = async (req, res) => {
