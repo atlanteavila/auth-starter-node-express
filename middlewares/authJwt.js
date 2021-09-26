@@ -1,7 +1,9 @@
 import jwt from "jsonwebtoken";
 import config from "../config.js";
+import dbManager from "../database/index.js";
+import { ObjectId } from "mongodb";
 
-export default (dbs) => ({
+export default () => ({
   verifyToken: (req, res, next) => {
     let token = req.headers["x-access-token"];
     if (!token) {
@@ -23,154 +25,56 @@ export default (dbs) => ({
   },
 
   isAdmin: (req, res, next) => {
-    User.findById(req.userId).exec((err, user) => {
-      if (err) {
-        res.status(500).send({ message: err.message });
-        return;
+    dbManager.findOne('users', { _id: ObjectId(req.userId) }).then((user) => {
+      if (!user) {
+        throw new Error('No user found');
       }
 
-      Role.find(
+      dbManager.findOne('roles',
         {
           _id: { $in: user.roles }
-        },
-        (err, roles) => {
-          if (err) {
-            res.status(500).send({ message: err.message });
+        })
+        .then(roles => {
+          if (!roles) {
+            throw new Error('No roles matched');
+          }
+          if (roles.includes('admin')) {
+            next();
             return;
+          } else {
+            throw new Error('An admin role is required to perform that action.')
           }
-
-          for (let i = 0; i < roles.length; i++) {
-            if (roles[i].name === "admin") {
-              next();
-              return;
-            }
-          }
-
-          res.status(403).send({ message: "Require Admin Role!" });
-          return;
-        }
-      );
+        })
+        .catch(e => {
+          res.status(403).json({ success: false, message: "Require Admin Role!" });
+        })
     });
   },
+
   isModerator: (req, res, next) => {
-    User.findById(req.userId).exec((err, user) => {
-      if (err) {
-        res.status(500).send({ message: err.message });
-        return;
+    dbManager.findOne('users', { _id: ObjectId(req.userId) }).then((user) => {
+      if (!user) {
+        throw new Error('No user found');
       }
 
-      Role.find(
+      dbManager.findOne('roles',
         {
           _id: { $in: user.roles }
-        },
-        (err, roles) => {
-          if (err) {
-            res.status(500).send({ message: err.message });
+        })
+        .then(roles => {
+          if (!roles) {
+            throw new Error('No roles matched');
+          }
+          if (roles.includes('moderator')) {
+            next();
             return;
+          } else {
+            throw new Error('An admin role is required to perform that action.')
           }
-
-          for (let i = 0; i < roles.length; i++) {
-            if (roles[i].name === "moderator") {
-              next();
-              return;
-            }
-          }
-
-          res.status(403).send({ message: "Require Moderator Role!" });
-          return;
-        }
-      );
+        })
+        .catch(e => {
+          res.status(403).json({ success: false, message: "Require Admin Role!" });
+        })
     });
   },
 })
-/*
-import db from "../models/index.js";
-const User = db.user;
-const Role = db.role;
-
-const verifyToken = (req, res, next) => {
-  let token = req.headers["x-access-token"];
-  if (!token) {
-    return res.status(403).send({ message: "No token provided!" });
-  }
-
-  jwt.verify(token, config.secret, (err, decoded) => {
-    if (err) {
-      return res.status(401).send({
-        success: false,
-        message: `Unauthorized! ${err.message}`,
-      });
-    }
-    req.userId = decoded.id;
-    next();
-  });
-};
-
-const isAdmin = (req, res, next) => {
-  User.findById(req.userId).exec((err, user) => {
-    if (err) {
-      res.status(500).send({ message: err.message });
-      return;
-    }
-
-    Role.find(
-      {
-        _id: { $in: user.roles }
-      },
-      (err, roles) => {
-        if (err) {
-          res.status(500).send({ message: err.message });
-          return;
-        }
-
-        for (let i = 0; i < roles.length; i++) {
-          if (roles[i].name === "admin") {
-            next();
-            return;
-          }
-        }
-
-        res.status(403).send({ message: "Require Admin Role!" });
-        return;
-      }
-    );
-  });
-};
-
-const isModerator = (req, res, next) => {
-  User.findById(req.userId).exec((err, user) => {
-    if (err) {
-      res.status(500).send({ message: err.message });
-      return;
-    }
-
-    Role.find(
-      {
-        _id: { $in: user.roles }
-      },
-      (err, roles) => {
-        if (err) {
-          res.status(500).send({ message: err.message });
-          return;
-        }
-
-        for (let i = 0; i < roles.length; i++) {
-          if (roles[i].name === "moderator") {
-            next();
-            return;
-          }
-        }
-
-        res.status(403).send({ message: "Require Moderator Role!" });
-        return;
-      }
-    );
-  });
-};
-
-const authJwt = {
-  verifyToken,
-  isAdmin,
-  isModerator
-};
-export default authJwt; */

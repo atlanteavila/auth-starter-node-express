@@ -2,8 +2,6 @@ import express from 'express';
 // import { MongoClient } from 'mongodb';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import db from './models/index.js';
-import helpers from './helpers/index.js';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import dbManager from './database/index.js';

@@ -1,101 +1,52 @@
 import config from "../config.js";
-import db from "../models/index.js";
 import randtoken from 'rand-token';
 import helpers from '../helpers/index.js';
 import dbManager from "../database/index.js";
-const User = db.user;
-const Role = db.role;
-const RefreshToken = db.refreshToken;
-
+import { ObjectId } from "mongodb";
 const refreshTokens = {};
 
-const signup = (req, res) => {
-    const { username, email, password } = req.body;
+const signup = async (req, res) => {
+    const { username, email, password, roles } = req.body;
     if (!username || !email || !password) {
         throw new Error("Sorry, all fields are required.");
     }
-    const user = new User({
+    
+    const getUserRoles = await dbManager.find('roles', { name: { $in: roles } });
+
+    console.log(getUserRoles[0]._id)
+    const user = {
         username,
         email,
-        password: helpers.encryptPassword(password)
-    });
+        password: helpers.encryptPassword(password),
+        roles: [getUserRoles[0]._id],
+    }
 
-    // bcrypt.hashSync(password, 8)
-
-    user.save((err, user) => {
-        if (err) {
-            res.status(500).send({ message: err.message });
-            return;
-        }
-
-        if (req.body.roles) {
-            Role.find(
-                {
-                    name: { $in: req.body.roles }
+    return dbManager.insertOne('users', user)
+        .then((createdUser) => {
+            const { username, email } = user;
+            console.log(createdUser)
+            res.status(200).send({
+                success: true,
+                message: 'User created.',
+                data: {
+                    username,
+                    email
                 },
-                (err, roles) => {
-                    if (err) {
-                        res.status(500).send({ message: err.message });
-                        return;
-                    }
-
-                    user.roles = roles.map(role => role._id);
-                    user.save(err => {
-                        if (err) {
-                            res.status(500).send({ message: err.message });
-                            return;
-                        }
-
-                        res.json({
-                            success: true,
-                            message: "User was registered successfully!"
-                        });
-                    });
-                }
-            );
-        } else {
-            Role.findOne({ name: "user" }, (err, role) => {
-                if (err) {
-                    res.status(500).send({ message: err.message });
-                    return;
-                }
-
-                user.roles = [role._id];
-                user.save(err => {
-                    if (err) {
-                        res.status(500).send({ message: err.message });
-                        return;
-                    }
-
-                    res.json({ message: "User was registered successfully!" });
-                });
-            });
-        }
-    });
+            })
+        })
+        .catch(e => {
+            return res.status(400).json({
+                success: false,
+                message: e.message,
+            })
+        })
 };
 
 const signin = (req, res) => {
     const { username } = req.body;
-    dbManager.aggregate();
     dbManager.findOne('users',
-        { username: username },
-        {
-            $lookup: {
-                "from": "roles",
-                "let": { "roles": "$id" },
-                pipeline: [
-                    {
-                        "$match": {
-                            "$expr": {
-                                "$in": ["$$roles", "$users.id"],
-                            },
-                        },
-                    },
-                ],
-                as: "user_roles"
-            }
-        }).then(async (user) => {
-            console.log('The user is here', user);
+        { username: username })
+        .then(async (user) => {
             if (!user) {
                 return res.code(404).json({
                     success: false,
@@ -117,7 +68,7 @@ const signin = (req, res) => {
                     $in: user.roles
                 }
             })
-            
+
             const refreshToken = randtoken.uid(256);
             refreshTokens[refreshToken] = username;
 
@@ -148,11 +99,13 @@ const token = async (req, res) => {
             message: 'A username is required.'
         })
     }
-    const storedRefreshToken = await RefreshToken.findOne({
-        refreshToken: refreshToken
-    })
-        .then(token => token)
-        .catch((error) => {
+    const storedRefreshToken = await dbManager.findOne(
+        'refreshTokens',
+        { refreshToken: refreshToken },
+    )
+        .then(result => result)
+        .catch(e => {
+            console.log('Error', e.message);
             res.json({
                 success: false,
                 message: 'Invalid refresh token.',
@@ -162,63 +115,57 @@ const token = async (req, res) => {
         });
 
     if ((storedRefreshToken)) {
-        User.findOne({
+        dbManager.findOne('users', {
             username: username,
-        }).populate("roles", "-__v")
-            .exec((err, user) => {
-                if (err) {
-                    res.status(500).send({
-                        success: false,
-                        message: err
-                    });
-                    return;
-                }
-
-                if (!user) {
-                    return res.status(404).send({
-                        success: false,
-                        message: "User Not found."
-                    });
-                }
-
-                const token = helpers.createJwt(user.id, config.secret)
-
-                const authorities = [];
-
-                for (let i = 0; i < user.roles.length; i++) {
-                    authorities.push("ROLE_" + user.roles[i].name.toUpperCase());
-                }
-                // generate new token and save;
-                const newRefreshToken = randtoken.uid(256);
-
-                const saveToken = {
-                    refreshToken: newRefreshToken,
-                    username: username,
-                }
-                const refresh = new RefreshToken(saveToken);
-
-                refresh.save((err) => {
-                    if (err) {
-                        throw new Error('Unable to save the user');
-                    }
-                })
-                RefreshToken.findOneAndDelete({
-                    refreshToken: refreshToken
-                })
-                    .catch(e => res.status(400).json({
-                        success: false,
-                        message: 'Unable to update refesh token',
-                    }))
-
-                res.status(200).json({
-                    id: user._id,
-                    username: user.username,
-                    email: user.email,
-                    roles: authorities,
-                    accessToken: token,
-                    newRefreshToken,
+        }).then(async (user) => {
+            if (!user) {
+                return res.status(404).send({
+                    success: false,
+                    message: "User Not found."
                 });
+            }
+
+            const token = helpers.createJwt(user.id, config.secret)
+
+            const roles = await dbManager.find("roles", {
+                _id: {
+                    $in: user.roles
+                }
             })
+
+            // generate new token and save;
+            const newRefreshToken = randtoken.uid(256);
+
+            const saveTokenDoc = {
+                refreshToken: newRefreshToken,
+                username: username,
+            }
+            await dbManager.insertOne('refreshTokens', saveTokenDoc)
+                .catch(e => {
+                    res.status(400).json({
+                        success: false,
+                        message: e.message,
+                    })
+                })
+            await dbManager.deleteOne('refreshTokens', { refreshToken: refreshToken })
+                .then(status => {
+                    res.status(200).json({
+                        id: user._id,
+                        username: user.username,
+                        email: user.email,
+                        roles: roles,
+                        accessToken: token,
+                        newRefreshToken,
+                    });
+                })
+                .catch(e => {
+                    res.status(400).json({
+                        success: false,
+                        message: e.message,
+                    })
+                })
+
+        })
     } else {
         res.status(401).json({ success: false })
     }

@@ -7,11 +7,18 @@ const authRoutes = function (app) {
         [
             verifySignUp.verifySignUp.checkDuplicateUsernameOrEmail,
             verifySignUp.verifySignUp.checkRolesExisted
-        ], authController.signup
+        ],
+        authController.signup
     );
 
-    app.post("/api/auth/signin", authController.signin);
-    app.post("/api/auth/token", authController.token);
+    app.post(
+        "/api/auth/signin",
+        authController.signin
+    );
+    app.post(
+        "/api/auth/token",
+        authController.token
+    );
 };
 export default {
     authRoutes

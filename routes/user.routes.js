@@ -4,7 +4,7 @@ import userController from '../controllers/user.controller.js';
 const userRoutes = function (app, dbs) {
     app.post("/api/user/info",
         [authJwt(dbs).verifyToken],
-        userController(dbs))
+        userController)
 }
 
 export default {

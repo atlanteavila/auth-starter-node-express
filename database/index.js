@@ -162,7 +162,6 @@ dbManager.findOne = (collectionName, query, options) => {
     return new Promise((resolve, reject) => {
         let collection = dbInstance.collection(collectionName);
         __replaceId(query);
-
         collection.findOne(query, options).then((doc) => {
             return resolve(doc);
         }).catch((err) => {
@@ -466,26 +465,6 @@ dbManager.listCollections = (filter, options) => {
             }
         });
     });
-}
-
-dbManager.aggregate = async (collection, query) => {
-    const roles = await dbInstance.collection('roles').aggregate([{
-        $lookup: {
-            "from": "roles",
-            "let": { "roles": "$id" },
-            pipeline: [
-                {
-                    "$match": {
-                        "$expr": {
-                            "$in": ["$$roles", "$users.id"],
-                        },
-                    },
-                },
-            ],
-            as: "user_roles"
-        }
-    }])
-    console.log('The roles print:::::', roles, '\n\n\n')
 }
 
 export default dbManager;
