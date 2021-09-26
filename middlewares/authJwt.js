@@ -1,92 +1,80 @@
 import jwt from "jsonwebtoken";
 import config from "../config.js";
-import db from "../models/index.js";
-const User = db.user;
-const Role = db.role;
+import dbManager from "../database/index.js";
+import { ObjectId } from "mongodb";
 
-const verifyToken = (req, res, next) => {
-  let token = req.headers["x-access-token"];
-  if (!token) {
-    return res.status(403).send({ message: "No token provided!" });
-  }
-
-  jwt.verify(token, config.secret, (err, decoded) => {
-    if (err) {
-      return res.status(401).send({
+export default () => ({
+  verifyToken: (req, res, next) => {
+    let token = req.headers["x-access-token"];
+    if (!token) {
+      return res.status(403).json({
         success: false,
-        message: `Unauthorized! ${err.message}`,
-      });
+        message: 'No token provided',
+      })
     }
-    req.userId = decoded.id;
-    next();
-  });
-};
+    jwt.verify(token, config.secret, (err, decoded) => {
+      if (err) {
+        return res.status(401).send({
+          success: false,
+          message: `Unauthorized! ${err.message}`,
+        });
+      }
+      req.userId = decoded.id;
+      next();
+    });
+  },
 
-const isAdmin = (req, res, next) => {
-  User.findById(req.userId).exec((err, user) => {
-    if (err) {
-      res.status(500).send({ message: err });
-      return;
-    }
+  isAdmin: (req, res, next) => {
+    dbManager.findOne('users', { _id: ObjectId(req.userId) }).then((user) => {
+      if (!user) {
+        throw new Error('No user found');
+      }
 
-    Role.find(
-      {
-        _id: { $in: user.roles }
-      },
-      (err, roles) => {
-        if (err) {
-          res.status(500).send({ message: err });
-          return;
-        }
-
-        for (let i = 0; i < roles.length; i++) {
-          if (roles[i].name === "admin") {
+      dbManager.findOne('roles',
+        {
+          _id: { $in: user.roles }
+        })
+        .then(roles => {
+          if (!roles) {
+            throw new Error('No roles matched');
+          }
+          if (roles.includes('admin')) {
             next();
             return;
+          } else {
+            throw new Error('An admin role is required to perform that action.')
           }
-        }
+        })
+        .catch(e => {
+          res.status(403).json({ success: false, message: "Require Admin Role!" });
+        })
+    });
+  },
 
-        res.status(403).send({ message: "Require Admin Role!" });
-        return;
+  isModerator: (req, res, next) => {
+    dbManager.findOne('users', { _id: ObjectId(req.userId) }).then((user) => {
+      if (!user) {
+        throw new Error('No user found');
       }
-    );
-  });
-};
 
-const isModerator = (req, res, next) => {
-  User.findById(req.userId).exec((err, user) => {
-    if (err) {
-      res.status(500).send({ message: err });
-      return;
-    }
-
-    Role.find(
-      {
-        _id: { $in: user.roles }
-      },
-      (err, roles) => {
-        if (err) {
-          res.status(500).send({ message: err });
-          return;
-        }
-
-        for (let i = 0; i < roles.length; i++) {
-          if (roles[i].name === "moderator") {
+      dbManager.findOne('roles',
+        {
+          _id: { $in: user.roles }
+        })
+        .then(roles => {
+          if (!roles) {
+            throw new Error('No roles matched');
+          }
+          if (roles.includes('moderator')) {
             next();
             return;
+          } else {
+            throw new Error('An admin role is required to perform that action.')
           }
-        }
-
-        res.status(403).send({ message: "Require Moderator Role!" });
-        return;
-      }
-    );
-  });
-};
-
-const authJwt = {
-  verifyToken,
-  isAdmin,
-  isModerator
-};
-export default authJwt;
+        })
+        .catch(e => {
+          res.status(403).json({ success: false, message: "Require Admin Role!" });
+        })
+    });
+  },
+})

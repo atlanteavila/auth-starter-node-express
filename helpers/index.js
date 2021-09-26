@@ -1,7 +1,5 @@
 import jwt from "jsonwebtoken";
 import bcrypt from 'bcryptjs';
-import db from '../models/index.js';
-const Role = db.role
 
 const helpers = {};
 
@@ -48,4 +46,7 @@ helpers.createJwt = (id, secret) => {
 helpers.encryptPassword = (password) => bcrypt.hashSync(password, 8);
 
 helpers.comparePasswords = (password, comparedPassword) => bcrypt.compareSync(password, comparedPassword);
+
+helpers.ROLES = ["user", "admin", "moderator"];
+
 export default helpers;

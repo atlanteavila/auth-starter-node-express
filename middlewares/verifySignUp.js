@@ -1,60 +1,53 @@
-import db from '../models/index.js';
-const ROLES = db.ROLES;
-const User = db.user;
+import dbManager from '../database/index.js';
+import helpers from '../helpers/index.js';
 
-const checkDuplicateUsernameOrEmail = (req, res, next) => {
+const checkDuplicateUsernameOrEmail = async (req, res, next) => {
     // Username
     const { username, email } = req.body;
     if (!username || !email) {
-        return res.status(400).send({ message: 'Sorry, username and emails are required' })
+        return res.status(400).send({ success: false, message: 'Sorry, username and emails are required.' })
     }
-    User.findOne({
-        username: req.body.username
-    }).exec((err, user) => {
-        if (err) {
-            res.status(500).send({ message: err });
-            return;
-        }
+    const usernameExists = await dbManager.findOne('users', {
+        username: req.body.username,
+    })
+        .then(result => result)
+        .catch(e => console.dir(e))
 
-        if (user) {
-            res.status(400).send({ message: "Failed! Username is already in use!" });
-            return;
-        }
+    if (usernameExists) {
+        return res.status(400).json({
+            success: false,
+            message: 'The user already exists.'
+        })
+    }
+    const emailExists = await dbManager.findOne('users', {
+        email: req.body.email,
+    })
+        .then(result => result)
+        .catch(e => console.dir(e))
 
-        // Email
-        User.findOne({
-            email: req.body.email
-        }).exec((err, user) => {
-            if (err) {
-                res.status(500).send({ message: err });
-                return;
-            }
-
-            if (user) {
-                res.status(400).send({ message: "Failed! Email is already in use!" });
-                return;
-            }
-
-            next();
-        });
-    });
-};
-
-const checkRolesExisted = (req, res, next) => {
-    if (req.body.roles) {
-        for (let i = 0; i < req.body.roles.length; i++) {
-            if (!ROLES.includes(req.body.roles[i])) {
-                res.status(400).send({
-                    message: `Failed! Role ${req.body.roles[i]} does not exist!`
-                });
-                return;
-            }
-        }
+    if (emailExists) {
+        return res.status(400).json({
+            success: false,
+            message: 'The user already exists.'
+        })
     }
 
     next();
 };
 
+const checkRolesExisted = (req, res, next) => {
+    if (req.body.roles) {
+        for (let role of req.body.roles) {
+            if (!helpers.ROLES.includes(role)) {
+                res.status(400).json({
+                    success: false,
+                    message: `Failed! you're passing an invalid role.`,
+                });
+            }
+        }
+    }
+    next();
+};
 
 export default {
     checkDuplicateUsernameOrEmail,
