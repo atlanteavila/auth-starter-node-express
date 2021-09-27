@@ -3,7 +3,6 @@ export default (req, res) => {
     return dbManager.findOne('users', { username: req.body.username }, { "username": 1, "email": 1, "roles": 1 })
         .then(result => {
             if (result) {
-                console.log(`Successfully found document: ${result}.`);
                 res.status(200).json({
                     success: true,
                     message: 'Found user',

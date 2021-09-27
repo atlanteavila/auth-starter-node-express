@@ -41,30 +41,6 @@ dbManager.initDb().then((dbs) => {
 
 }).catch(console.dir);
 
-/* 
-db.mongoose
-  .connect(`mongodb+srv://atlante_avila:${process.env.DBPASS}@cluster0.t8boi.mongodb.net/myFirstDatabase?retryWrites=true&w=majority`, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-  })
-  .then(() => {
-    console.log("Successfully connect to MongoDB.");
-    helpers.initial();
-  })
-  .catch(err => {
-    console.error("Connection error", err);
-    process.exit();
-  });
-
-// simple route
-app.get('/', (req, res) => {
-  res.json({ message: `API is up and running!` });
-});
-
-authRoutes.authRoutes(app);
-userRoutes.userRoutes(app); 
-*/
-
 // set port, listen for requests
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {

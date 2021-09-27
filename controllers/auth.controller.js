@@ -149,6 +149,7 @@ const token = async (req, res) => {
                 })
             await dbManager.deleteOne('refreshTokens', { refreshToken: refreshToken })
                 .then(status => {
+                    console.log('The delete status', status);
                     res.status(200).json({
                         id: user._id,
                         username: user.username,
