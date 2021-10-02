@@ -1,9 +1,9 @@
-import dbManager from '../database/index.js';
-import helpers from '../helpers/index.js';
+import dbManager from '../database/index.js'
+import helpers from '../helpers/index.js'
 
 const checkDuplicateUsernameOrEmail = async (req, res, next) => {
     // Username
-    const { username, email } = req.body;
+    const { username, email } = req.body
     if (!username || !email) {
         return res.status(400).send({ success: false, message: 'Sorry, username and emails are required.' })
     }
@@ -32,24 +32,31 @@ const checkDuplicateUsernameOrEmail = async (req, res, next) => {
         })
     }
 
-    next();
-};
+    next()
+}
 
 const checkRolesExisted = (req, res, next) => {
+    const rolesArray = req.body.roles
+    if (!Array.isArray(rolesArray)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Please provide a valid structure for assigned roles',
+        })
+    }
     if (req.body.roles) {
         for (let role of req.body.roles) {
             if (!helpers.ROLES.includes(role)) {
                 res.status(400).json({
                     success: false,
-                    message: `Failed! you're passing an invalid role.`,
-                });
+                    message: 'Failed! you\'re passing an invalid role.',
+                })
             }
         }
     }
-    next();
-};
+    next()
+}
 
 export default {
     checkDuplicateUsernameOrEmail,
     checkRolesExisted
-};
+}

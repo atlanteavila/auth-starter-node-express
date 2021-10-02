@@ -1,30 +1,32 @@
-import config from "../config.js";
-import randtoken from 'rand-token';
-import helpers from '../helpers/index.js';
-import dbManager from "../database/index.js";
-import { ObjectId } from "mongodb";
-const refreshTokens = {};
+import config from '../config.js'
+import randtoken from 'rand-token'
+import helpers from '../helpers/index.js'
+import dbManager from '../database/index.js'
+const refreshTokens = {}
 
 const signup = async (req, res) => {
-    const { username, email, password, roles } = req.body;
+    const { username, email, password, roles } = req.body
     if (!username || !email || !password) {
-        throw new Error("Sorry, all fields are required.");
+        throw new Error('Sorry, all fields are required.')
     }
-    
-    const getUserRoles = await dbManager.find('roles', { name: { $in: roles } });
 
-    console.log(getUserRoles[0]._id)
+    if (!roles.includes('user') || roles.length > 1) {
+        return res.status(400).json({
+            success: false,
+            message: 'Only users roles are accepted here.'
+        })
+    }
+    const getUserRoles = await dbManager.find('roles', { name: { $in: roles } })
     const user = {
         username,
         email,
         password: helpers.encryptPassword(password),
-        roles: [getUserRoles[0]._id],
+        roles: getUserRoles.map(val => val._id),
     }
 
     return dbManager.insertOne('users', user)
-        .then((createdUser) => {
-            const { username, email } = user;
-            console.log(createdUser)
+        .then(() => {
+            const { username, email } = user
             res.status(200).send({
                 success: true,
                 message: 'User created.',
@@ -40,10 +42,10 @@ const signup = async (req, res) => {
                 message: e.message,
             })
         })
-};
+}
 
 const signin = (req, res) => {
-    const { username } = req.body;
+    const { username } = req.body
     dbManager.findOne('users',
         { username: username })
         .then(async (user) => {
@@ -53,24 +55,24 @@ const signin = (req, res) => {
                     message: 'Unable to find user.'
                 })
             }
-            const passwordIsValid = helpers.comparePasswords(req.body.password, user.password);
+            const passwordIsValid = helpers.comparePasswords(req.body.password, user.password)
             if (!passwordIsValid) {
                 return res.status(401).send({
                     accessToken: null,
-                    message: "Invalid Password!"
-                });
+                    message: 'Invalid Password!'
+                })
             }
 
-            const token = helpers.createJwt(user.id, config.secret);
+            const token = helpers.createJwt(user.id, config.secret)
 
-            const roles = await dbManager.find("roles", {
+            const roles = await dbManager.find('roles', {
                 _id: {
                     $in: user.roles
                 }
             })
 
-            const refreshToken = randtoken.uid(256);
-            refreshTokens[refreshToken] = username;
+            const refreshToken = randtoken.uid(256)
+            refreshTokens[refreshToken] = username
 
             const saveUserToken = {
                 refreshToken: refreshToken,
@@ -86,13 +88,13 @@ const signin = (req, res) => {
                 roles,
                 accessToken: token,
                 refreshToken,
-            });
+            })
         })
-        .catch(e => console.log('error message', e.message));
-};
+        .catch(e => console.log('error message', e.message))
+}
 
 const token = async (req, res) => {
-    const { username, refreshToken } = req.body.data;
+    const { username, refreshToken } = req.body.data
     if (!username) {
         res.status(400).json({
             success: false,
@@ -105,14 +107,14 @@ const token = async (req, res) => {
     )
         .then(result => result)
         .catch(e => {
-            console.log('Error', e.message);
+            console.log('Error', e.message)
             res.json({
                 success: false,
                 message: 'Invalid refresh token.',
-                error,
+                error: e.message,
 
             })
-        });
+        })
 
     if ((storedRefreshToken)) {
         dbManager.findOne('users', {
@@ -121,20 +123,20 @@ const token = async (req, res) => {
             if (!user) {
                 return res.status(404).send({
                     success: false,
-                    message: "User Not found."
-                });
+                    message: 'User Not found.'
+                })
             }
 
             const token = helpers.createJwt(user.id, config.secret)
 
-            const roles = await dbManager.find("roles", {
+            const roles = await dbManager.find('roles', {
                 _id: {
                     $in: user.roles
                 }
             })
 
             // generate new token and save;
-            const newRefreshToken = randtoken.uid(256);
+            const newRefreshToken = randtoken.uid(256)
 
             const saveTokenDoc = {
                 refreshToken: newRefreshToken,
@@ -149,7 +151,7 @@ const token = async (req, res) => {
                 })
             await dbManager.deleteOne('refreshTokens', { refreshToken: refreshToken })
                 .then(status => {
-                    console.log('The delete status', status);
+                    console.log('The delete status', status)
                     res.status(200).json({
                         id: user._id,
                         username: user.username,
@@ -157,7 +159,7 @@ const token = async (req, res) => {
                         roles: roles,
                         accessToken: token,
                         newRefreshToken,
-                    });
+                    })
                 })
                 .catch(e => {
                     res.status(400).json({

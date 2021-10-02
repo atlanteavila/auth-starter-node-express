@@ -1,6 +1,6 @@
-import dbManager from "../database/index.js";
+import dbManager from '../database/index.js'
 export default (req, res) => {
-    return dbManager.findOne('users', { username: req.body.username }, { "username": 1, "email": 1, "roles": 1 })
+    return dbManager.findOne('users', { username: req.body.username }, { 'username': 1, 'email': 1, 'roles': 1 })
         .then(result => {
             if (result) {
                 res.status(200).json({
@@ -13,9 +13,9 @@ export default (req, res) => {
                     },
                 })
             } else {
-                console.log("No document matches the provided query.");
+                console.log('No document matches the provided query.')
             }
-            return result;
+            return result
         })
         .catch(e => res.status(400).json({
             success: false,
